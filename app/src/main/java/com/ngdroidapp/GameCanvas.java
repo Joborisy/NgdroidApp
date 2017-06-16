@@ -197,7 +197,7 @@ public class GameCanvas extends BaseCanvas {
             enemyx += enemyspeedx;
             enemyy += enemyspeedy;
 
-            if(enemyx + 256 > getWidth() || enemyx < 0)
+            if(enemyx + 256 > getWidth() || enemyx < 0) //Sınırlardan çıkmaması için
             {
                 enemyspeedx = -enemyspeedx;
             }
