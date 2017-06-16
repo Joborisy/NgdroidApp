@@ -4,9 +4,11 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Rect;
 
+import java.util.Random;
 import java.util.Vector;
 
 import istanbul.gamelab.ngdroid.base.BaseCanvas;
+import istanbul.gamelab.ngdroid.core.NgMediaPlayer;
 import istanbul.gamelab.ngdroid.util.Log;
 import istanbul.gamelab.ngdroid.util.Utils;
 
@@ -18,16 +20,24 @@ import istanbul.gamelab.ngdroid.util.Utils;
 
 
 public class GameCanvas extends BaseCanvas {
+    //global değişkenler
+    private Bitmap tileset, spritesheet, bullet, enemy, explode;
+    private Rect tilesrc, tiledst, spritesrc, spritedst, bulletsrc, enemysrc, enemydst, explodesrc, explodedst;
 
-    private Bitmap tileset, spritesheet, bullet;
-    private Rect tilesrc, tiledst, spritesrc, spritedst, bulletsrc;
+    private int kareno, animasyonno, animasyonyonu, bulletoffsetx_temp, bulletoffsety_temp, explodeframeno;
 
-    private int kareno, animasyonno, animasyonyonu, bulletoffsetx_temp, bulletoffsety_temp;
-
-    private int hiz, hizx, hizy, spritex, spritey,  bulletspeedy, bulletspeed;
+    private int hiz, hizx, hizy, spritex, spritey,  bulletspeedy, bulletspeed, enemyspeedx, enemyspeedy, enemyx, enemyy;
     private int bulletx_temp, bullety_temp; //ekrana basılacak merminin koordinatları
 
-    public Vector <Rect> bulletdst2; //jenerik yapı ->
+    private int sesefekti_patlama;
+    private NgMediaPlayer arkaplan_muzik;
+
+    private Random enemyrnd;
+
+    private int donmenoktasi;
+    private boolean enemyexist, exploded, donmeboolean;
+
+    public Vector <Rect> bulletdst; //jenerik yapı ->
     public Vector <Integer>  bulletx2, bullety2, bulletoffsetx2, bulletoffsety2, bulletspeedx2, bulletspeedy2;
 
     int touchx, touchy;//Ekranda bastigimiz yerlerin koordinatlari
@@ -36,20 +46,57 @@ public class GameCanvas extends BaseCanvas {
         super(ngApp);
     }
 
+
     public void setup() {
+        try {
+            sesefekti_patlama = root.soundManager.load("sounds/se2.wav");
+        } catch (Exception e){
+            e.printStackTrace(); //Hataya sebep olan şeyleri yazdırmak
+        } //->Oluşabilecek tüm hataları düzeltmek
+
+        //Arkaplan muzigi kısmı
+        arkaplan_muzik = new NgMediaPlayer(root);
+        arkaplan_muzik.load("sounds/m2.mp3");
+        arkaplan_muzik.setVolume(0.5f);
+        arkaplan_muzik.prepare();
+        arkaplan_muzik.start();
+
         //Log.i(TAG, "setup");
         tileset = Utils.loadImage(root,"images/tilea2.png");
         tilesrc = new Rect();
         tiledst = new Rect();
 
-        spritesheet = Utils.loadImage(root,"images/cowboy.png");
+        // region enemy
+        enemy = Utils.loadImage(root, "images/mainship03.png");
+        enemysrc = new Rect();
+        enemydst = new Rect();
+        enemyexist = true;
+        enemyspeedx = 10;
+        enemyspeedy = 0;
+        enemyx = getWidthHalf() - 128;
+        enemyy = getHeight() - 256;
+        //endregion
 
+        donmenoktasi = getWidth();
+        donmeboolean = true;
+        enemyrnd = new Random();
+
+        //region explode
+        explode = Utils.loadImage(root, "images/exp2_0.png");
+        explodesrc = new Rect();
+        explodedst = new Rect();
+        explodeframeno = 0;
+        exploded = false;
+        //endregion
+
+        //region spritesheet
+        spritesheet = Utils.loadImage(root,"images/cowboy.png");
         spritesrc = new Rect();
         spritedst = new Rect();
 
         bullet = Utils.loadImage(root,"images/bullet.png");
         bulletsrc = new Rect();
-
+        //endregion ben koydum düzelticem
 
         kareno=0;
 
@@ -73,7 +120,7 @@ public class GameCanvas extends BaseCanvas {
         bulletx_temp = 0;
         bullety_temp = 0;
 
-        bulletdst2 = new Vector<>();
+        bulletdst = new Vector<>();
         bulletx2 = new Vector<>();
         bullety2 = new Vector<>();
         bulletspeedx2 = new Vector<>();
@@ -87,8 +134,74 @@ public class GameCanvas extends BaseCanvas {
 
             tilesrc.set(0,0,64,64);
 
+            //enemy hareketi
+            if(donmeboolean){
+                if(enemyspeedx > 0)
+                {
+                    donmenoktasi = enemyrnd.nextInt(getWidth() - 256 - (enemyx + 50)) + enemyx;
+                }
+                else if(enemyspeedx < 0)
+                {
+                    donmenoktasi = enemyrnd.nextInt(enemyx);
+                }
+                donmeboolean = false;
+            }
+            //enemy dönme noktasına geldi mi kontrolü
+            if(enemyspeedx > 0 && enemyx > donmenoktasi){
+                donmeboolean = true;
+                enemyspeedx = -enemyspeedx;
+            }
+            else if(enemyspeedx < 0 && enemyx < donmenoktasi)
+            {
+                donmeboolean = true;
+                enemyspeedx = -enemyspeedx;
+            }
+
+            //enemysrc dst leri set etme aşaması 16.06.2017 part 1
+            if(enemyexist)
+            {
+                enemysrc.set(0, 0, 64, 64);
+                //enemydst.set(getWidthHalf()- 128, getHeight()-256, getWidthHalf() + 128, getHeight());
+                enemydst.set(enemyx, enemyy, enemyx+256, enemyy+256);
+            }
+
+            for(int i = 0; i < bulletdst.size(); i++)
+            {
+                //merminin rect ile uzay gemisinin rect inin kesisip kesismedigini kontrol ediyoruz 16.06.2017 part 2
+                if(enemydst.intersect(bulletdst.elementAt(i))) //intersect fonksiyonu kesişip kesişmediğini kontrol eder. Keserse 1 döndürür.
+                {
+                    explodedst.set(bulletx2.elementAt(i) - 64, bullety2.elementAt(i) - 64, bulletx2.elementAt(i) + 64, bullety2.elementAt(i) + 64);
+                    bulletx2.removeElementAt(i);
+                    bullety2.removeElementAt(i);
+                    bulletdst.removeElementAt(i);
+                    bulletspeedx2.removeElementAt(i);
+                    bulletspeedy2.removeElementAt(i);
+                    enemydst.set(0, 0, 0, 0);
+                    enemyexist = false;
+                    exploded = true;
+                    root.soundManager.play(sesefekti_patlama); //mermi değdiği anda BOM
+                }
+
+            }
+            if(exploded) {
+                explodesrc = getexplodeframe(explodeframeno);
+                explodeframeno+=2;
+            }
+            if(explodeframeno > 15) {
+                explodeframeno = 0;
+                exploded = false;
+            }
+
             spritex += hizx;
             spritey += hizy;
+            enemyx += enemyspeedx;
+            enemyy += enemyspeedy;
+
+            if(enemyx + 256 > getWidth() || enemyx < 0)
+            {
+                enemyspeedx = -enemyspeedx;
+            }
+            //y değişmeyeceği için aynı şeyi y için yazmadık
 
             for(int i=0; i < bulletx2.size(); i++)
             {
@@ -97,13 +210,11 @@ public class GameCanvas extends BaseCanvas {
                 if(bulletx2.elementAt(i) > getWidth() || bulletx2.elementAt(i) < 0 || bullety2.elementAt(i) > getHeight() || bullety2.elementAt(i) < 0){
                     bulletx2.removeElementAt(i);
                     bullety2.removeElementAt(i);
-                    //bulletoffsety2.removeElementAt(i);
-                    //bulletoffsetx2.removeElementAt(i);
-                    bulletdst2.removeElementAt(i);
+                    bulletdst.removeElementAt(i);
                     bulletspeedx2.removeElementAt(i);
                     bulletspeedy2.removeElementAt(i);
                 }
-                Log.i("Control", String.valueOf(bulletx2.size()));
+                Log.i("Control", String.valueOf(bulletx2.size())); //mermi silindi mi kontrolü?
             }
 
 
@@ -112,12 +223,12 @@ public class GameCanvas extends BaseCanvas {
 
             if(spritex+256 > getWidth() || spritex < 0) {//x ekseni icin sona geldimi kontrolu
                 hizx = 0;//spritex = getWidth() - 256;
-                //animasyonno = 0;//sona gelince durma animasyonu
+                //animasyonno = 0;  //sona gelince durma animasyonu
             }
 
             if(spritey+256 > getHeight() || spritey < 0){//y ekseni icin sona geldimi kontrolu
                 hizy = 0;//spritey = getHeight() -256;
-                //animasyonno = 0;//sona gelince durma animasyonu
+                //animasyonno = 0;  //sona gelince durma animasyonu
             }
 
             if(animasyonno == 1)
@@ -146,8 +257,10 @@ public class GameCanvas extends BaseCanvas {
 
             for(int i=0; i < bulletx2.size(); i++)
             {
-                bulletdst2.elementAt(i).set(bulletx2.elementAt(i), bullety2.elementAt(i), bulletx2.elementAt(i) + 32, bullety2.elementAt(i) + 32);
+                bulletdst.elementAt(i).set(bulletx2.elementAt(i), bullety2.elementAt(i), bulletx2.elementAt(i) + 32, bullety2.elementAt(i) + 32);
             }
+
+
         }
 
 
@@ -175,11 +288,28 @@ public class GameCanvas extends BaseCanvas {
         }
         canvas.drawBitmap(spritesheet,spritesrc,spritedst,null);
 
-        for(int i=0; i<bulletdst2.size(); i++) {
-            canvas.drawBitmap(bullet, bulletsrc, bulletdst2.elementAt(i), null);
+        for(int i = 0; i< bulletdst.size(); i++) {
+            canvas.drawBitmap(bullet, bulletsrc, bulletdst.elementAt(i), null);
+        }
+        if(enemyexist)
+        {
+            canvas.drawBitmap(enemy, enemysrc, enemydst, null);
         }
 
+        if(exploded)
+        {
+            canvas.drawBitmap(explode, explodesrc, explodedst, null); //Patlama efekti
+        }
     }
+
+
+    public Rect getexplodeframe(int frameno){  //Patlama animasyon efekti için fonksiyon tanımladık 16.06.2017 Part 3
+        frameno = 15 - frameno;
+        Rect temp = new Rect();
+        temp.set((frameno%4)*64, (frameno/4)*64, ((frameno%4)+1)*64, ((frameno/4)+1)*64);
+        return temp;
+    }
+
 
     public void keyPressed(int key) {
 
@@ -294,7 +424,7 @@ public class GameCanvas extends BaseCanvas {
             bullety2.add(spritey+ bulletoffsety_temp);
             bulletx_temp = spritex + bulletoffsetx_temp;
             bullety_temp = spritey + bulletoffsety_temp;
-            bulletdst2.add(new Rect(bulletx_temp, bullety_temp, bulletx_temp + 32, bullety_temp + 32)); //diziye atadık her mermi bilgisini (mermi bilgisini en son ayarlarız)
+            bulletdst.add(new Rect(bulletx_temp, bullety_temp, bulletx_temp + 32, bullety_temp + 32)); //diziye atadık her mermi bilgisini (mermi bilgisini en son ayarlarız)
         }
     }
 
