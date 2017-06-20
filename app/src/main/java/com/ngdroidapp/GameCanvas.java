@@ -2,6 +2,7 @@ package com.ngdroidapp;
 
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.graphics.Rect;
 
 import java.util.Random;
@@ -23,7 +24,7 @@ import istanbul.gamelab.ngdroid.util.Utils;
 public class GameCanvas extends BaseCanvas {
     //global değişkenler
     private Bitmap tileset, spritesheet, bullet, enemy, explode, laser, buttons;
-    private Rect lasersrc, laserdst1, laserdst2, restartsrc, playsrc, exitsrc, restartdst, playdst, exitdst;
+    private Rect lasersrc, laserdst1, laserdst2, restartsrc, exitsrc, restartdst, exitdst;
     private Rect tilesrc, tiledst, spritesrc, spritedst, bulletsrc, enemysrc, enemydst, explodesrc, explodedst;
 
     private int kareno, animasyonno, animasyonyonu, bulletoffsetx_temp, bulletoffsety_temp, explodeframeno;
@@ -37,12 +38,17 @@ public class GameCanvas extends BaseCanvas {
     private Random enemyrnd;
 
     private int donmenoktasi;
-    private boolean enemyexist, exploded, donmeboolean, spriteexist, guishow, playshow;
+    private boolean enemyexist, exploded, donmeboolean, spriteexist, guishow;
 
     public Vector <Rect> bulletdst; //jenerik yapı ->
     public Vector <Integer>  bulletx2, bullety2, bulletoffsetx2, bulletoffsety2, bulletspeedx2, bulletspeedy2;
 
     int touchx, touchy;//Ekranda bastigimiz yerlerin koordinatlari
+
+    private Paint textcolor;
+    private int textsize;
+    private String text;
+    private Rect textdst;
 
     /* öldükten sonraki menü
     private Bitmap menu;
@@ -57,42 +63,55 @@ public class GameCanvas extends BaseCanvas {
 
 
     public void setup() {
+
+        //region text GAME OVER
+        textcolor = new Paint();
+        textcolor.setARGB(255, 255, 0, 0);
+        textsize = 64;
+        textcolor.setTextSize(textsize);
+        text = "GAME OVER";
+        textdst = new Rect();
+        //textcolor.getTextBounds(text, 0, text.length(), textdst);
+        textcolor.setTextAlign(Paint.Align.CENTER);
+        //endregion
+
         //region buttons
         restartsrc = new Rect();
         restartdst = new Rect();
-        playsrc = new Rect();
-        playdst = new Rect();
+
         exitsrc = new Rect();
         exitdst = new Rect();
         buttons = Utils.loadImage(root, "images/buttons.png");
         guishow = false;
-        playshow = true;
+
         //endregion
 
+        //region enemy laser
         prevtime = System.currentTimeMillis();
 
         laser = Utils.loadImage(root, "images/beams1.png");
         laserdst1 = new Rect(-100, -100, -100, -100);
-        laserdst2 = new Rect(-100, -100, -100, -100);
+        laserdst2 = new Rect(-50, -50, -50, -50);
         lasersrc = new Rect();
-        laserspeed = 128;
+        laserspeed = 64;
         lasery = -400;
+        //endregion
 
-        spriteexist = true;
-
-
+        //region arkaplan music
         try {
             sesefekti_patlama = root.soundManager.load("sounds/se2.wav");
         } catch (Exception e){
             e.printStackTrace(); //Hataya sebep olan şeyleri yazdırmak
         } //->Oluşabilecek tüm hataları düzeltmek
-        //
-        //Arkaplan muzigi kısmı
+
+        //Arkaplan muzigi
         arkaplan_muzik = new NgMediaPlayer(root);
         arkaplan_muzik.load("sounds/m2.mp3");
         arkaplan_muzik.setVolume(0.5f);
         arkaplan_muzik.prepare();
         arkaplan_muzik.start();
+        //endregion
+
         //region tileset
         //Log.i(TAG, "setup");
         tileset = Utils.loadImage(root,"images/tilea2.png");
@@ -109,11 +128,15 @@ public class GameCanvas extends BaseCanvas {
         enemyspeedy = 0;
         enemyx = getWidthHalf() - 128;
         enemyy = getHeight() - 256;
+
+
         //endregion
 
+        //region enemy hareketi
         donmenoktasi = getWidth();
         donmeboolean = true;
         enemyrnd = new Random();
+        //endregion
 
         //region explode
         explode = Utils.loadImage(root, "images/exp2_0.png");
@@ -128,9 +151,7 @@ public class GameCanvas extends BaseCanvas {
         spritesrc = new Rect();
         spritedst = new Rect();
 
-        bullet = Utils.loadImage(root,"images/bullet.png");
-        bulletsrc = new Rect();
-        //endregion ben koydum düzelticem
+        spriteexist = true;
 
         kareno=0;
 
@@ -143,9 +164,13 @@ public class GameCanvas extends BaseCanvas {
         hizy = 0;
         spritex = 0; //->Karakterin x düzlemindeki büyüklüğü
         spritey = 0; //->Karakterin y düzlemindeki büyüklüğü
+        //endregion
+
+        //region bullet
+        bullet = Utils.loadImage(root,"images/bullet.png");
+        bulletsrc = new Rect();
 
         bulletspeed = 0;
-
         bulletspeedy = 0;
 
         bulletoffsetx_temp = 256;
@@ -161,17 +186,17 @@ public class GameCanvas extends BaseCanvas {
         bulletspeedy2 = new Vector<>();
         bulletoffsetx2 = new Vector<>();
         bulletoffsety2 = new Vector<>();
+        //endregion
     }
 
         public void update() {
             //Log.i(TAG, "mehmet agca");
-            if(playshow)
-            {
-                playdst.set(getWidthHalf() - 64, getHeightHalf() - 64, getWidthHalf() + 64, getHeightHalf() + 64);
-                playsrc.set(0, 0, 256, 256);
+            //region playbutton
+
                 tilesrc.set(0,0,64,64);
-                return;
-            }
+
+            //endregion
+
             //region buttons
             restartsrc.set(256, 0, 512, 256);
             exitsrc.set(512,0,768,256);
@@ -234,6 +259,8 @@ public class GameCanvas extends BaseCanvas {
             }
             //endregion
 
+            //region enemy koordinatları enemy ölümü mermi hareketleri
+
             //enemysrc dst leri set etme aşaması 16.06.2017 part 1
             if(enemyexist)
             {
@@ -248,17 +275,17 @@ public class GameCanvas extends BaseCanvas {
                 if(enemydst.intersect(bulletdst.elementAt(i))) //intersect fonksiyonu kesişip kesişmediğini kontrol eder. Keserse 1 döndürür.
                 {
                     explodedst.set(enemyx, enemyy, enemyx + 256, bullety2.elementAt(i) + 256);
-                    bulletx2.removeElementAt(i);
-                    bullety2.removeElementAt(i);
-                    bulletdst.removeElementAt(i);
-                    bulletspeedx2.removeElementAt(i);
-                    bulletspeedy2.removeElementAt(i);
+                    bulletx2.removeAllElements();
+                    bullety2.removeAllElements();
+                    bulletdst.removeAllElements();
+                    bulletspeedx2.removeAllElements();
+                    bulletspeedy2.removeAllElements();
                     enemydst.set(0, 0, 0, 0);
                     enemyexist = false;
                     exploded = true;
+                    guishow = true;
                     root.soundManager.play(sesefekti_patlama); //değdiği anda BOM
                 }
-
             }
             if(exploded) {
                 explodesrc = getexplodeframe(explodeframeno);
@@ -268,17 +295,28 @@ public class GameCanvas extends BaseCanvas {
                 explodeframeno = 0;
                 exploded = false;
             }
+            //endregion
 
+            //region karakter hızı
             spritex += hizx;
             spritey += hizy;
+            //endregion
+
+            //region enemy hızı
             enemyx += enemyspeedx;
             enemyy += enemyspeedy;
+
+            //endregion
+
+            //region enemy hareketi
 
             if(enemyx + 256 > getWidth() || enemyx < 0) //Sınırlardan çıkmaması için
             {
                 enemyspeedx = -enemyspeedx;
             }
             //y değişmeyeceği için aynı şeyi y için yazmadık
+            //endregion
+
             //region bullet
             for(int i=0; i < bulletx2.size(); i++)
             {
@@ -290,14 +328,13 @@ public class GameCanvas extends BaseCanvas {
                     bulletdst.removeElementAt(i);
                     bulletspeedx2.removeElementAt(i);
                     bulletspeedy2.removeElementAt(i);
+
                 }
                 //Log.i("Control", String.valueOf(bulletx2.size())); //mermi silindi mi kontrolü?
             }
             //endregion
 
-            //bulletx_temp += bulletspeedx;
-            //bullety_temp += bulletspeedy;
-
+            //region karakter sınırlara geldi mi
             if(spritex+256 > getWidth() || spritex < 0) {//x ekseni icin sona geldimi kontrolu
                 hizx = 0;//spritex = getWidth() - 256;
                 //animasyonno = 0;  //sona gelince durma animasyonu
@@ -308,6 +345,9 @@ public class GameCanvas extends BaseCanvas {
                 //animasyonno = 0;  //sona gelince durma animasyonu
             }
 
+            //endregion
+
+            //region karakter hareketi ve animasyonu
             if(animasyonno == 1)
                 kareno++;
             else if(animasyonno == 0)
@@ -332,7 +372,9 @@ public class GameCanvas extends BaseCanvas {
               //  Log.i(TAG, String.valueOf(spritex));
                 spritedst.set(spritex, spritey, spritex+256, spritey+256);//Ekrana cizilecegi koordinatlar
             }
+            //endregion
 
+            //region bullet koordinatları
             bulletsrc.set(0,0,70,70);
             //bulletdst.set(bulletx_temp, bullety_temp, bulletx_temp + 32, bullety_temp + 32);
 
@@ -340,10 +382,7 @@ public class GameCanvas extends BaseCanvas {
             {
                 bulletdst.elementAt(i).set(bulletx2.elementAt(i), bullety2.elementAt(i), bulletx2.elementAt(i) + 32, bullety2.elementAt(i) + 32);
             }
-
-            /*menusrc.set(0,0,768,256);
-            menudst.set(getWidth() /2 -384, getHeight() /2 -128, getWidth() /2 +384, getHeight() /2 +128); -> Bu benim yazdığım, getWidth'i değişkene ata */
-
+            //endregion
         }
 
 
@@ -359,6 +398,7 @@ public class GameCanvas extends BaseCanvas {
             }
         }*/
 
+        //region harita çizimi
         for (int i=0; i<getWidth(); i+=128)
         {
             for(int j=0; j<getHeight(); j+=128)
@@ -367,6 +407,8 @@ public class GameCanvas extends BaseCanvas {
                 canvas.drawBitmap(tileset,tilesrc,tiledst,null);//yesil cimen zemini tum ekrana cizme
             }
         }
+        //endregion
+
         canvas.drawBitmap(spritesheet,spritesrc,spritedst,null);
 
         for(int i = 0; i< bulletdst.size(); i++) {
@@ -382,11 +424,9 @@ public class GameCanvas extends BaseCanvas {
         }
         canvas.drawBitmap(laser, lasersrc, laserdst1, null);
         canvas.drawBitmap(laser, lasersrc, laserdst2, null);
-        if(playshow)
-        {
-            canvas.drawBitmap(buttons, playsrc, playdst, null);
-        }
+
         if(guishow) {
+            canvas.drawText(text, getWidthHalf(), getHeightHalf() - 300, textcolor);
             canvas.drawBitmap(buttons, restartsrc, restartdst, null);
             canvas.drawBitmap(buttons, exitsrc, exitdst, null);
         }
@@ -434,8 +474,8 @@ public class GameCanvas extends BaseCanvas {
 
     public void touchUp(int x, int y) {
 
-        //region kontrol
-
+        //region karakter hareketi kontrolü
+        if(spriteexist){
         if((x - touchx) > 100)//saga cektiysek
         {
             animasyonno = 1;
@@ -518,6 +558,7 @@ public class GameCanvas extends BaseCanvas {
             bullety_temp = spritey + bulletoffsety_temp;
             bulletdst.add(new Rect(bulletx_temp, bullety_temp, bulletx_temp + 32, bullety_temp + 32)); //diziye atadık her mermi bilgisini (mermi bilgisini en son ayarlarız)
         }
+        }
         //endregion
 
         //region gui kontrol
@@ -526,39 +567,27 @@ public class GameCanvas extends BaseCanvas {
         {
             if(restartdst.contains(x, y))
             {
-                root.setup();
+                //root.setup(); -> Tüm sistemi yeniden başlatır
+                setup(); //Sadece GameCanvas'ı yeniden başlatır
             }
             if(exitdst.contains(x, y))
             {
-                System.exit(0);
-            }
-        }
-        if(playshow)
-        {
-            if(playdst.contains(x, y))
-            {
-                playshow = false;
+                MenuCanvas mc = new MenuCanvas(root); //objemizi oluşturduk
+                root.canvasManager.setCurrentCanvas(mc); //Mainmanu'ye çıkar
+                //System.exit(0); -> Sistemden Çıkar
             }
         }
         //endregion
-
     }
-
 
     public void pause() {
-
     }
-
 
     public void resume() {
-
     }
-
 
     public void reloadTextures() {
-
     }
-
 
     public void showNotify() {
     }
